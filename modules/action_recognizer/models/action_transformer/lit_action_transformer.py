@@ -4,6 +4,7 @@ from torch import optim
 import torch.nn.functional as F
 import numpy as np
 from sklearn.metrics import confusion_matrix
+import torch
 
 
 class LitActionTransformer(pl.LightningModule):
@@ -15,7 +16,7 @@ class LitActionTransformer(pl.LightningModule):
             model_kwargs['num_channels'] = 3
         else:
             model_kwargs['num_channels'] = 2
-
+        self.max_sequence_length = model_kwargs['num_frames']
         self.model = ActionTransformer(**model_kwargs)
         self.val_predict = []
         self.val_gt = []
@@ -28,6 +29,15 @@ class LitActionTransformer(pl.LightningModule):
     def forward(self, x):
         return self.model(x)
 
+    def generate_sequence_mask(self, valid_len, num_batches, num_frames):
+        # One additional item for [CLS] token
+        mask = torch.zeros(num_batches, num_frames + 1, device=self.device)
+        row_indices = torch.argwhere(valid_len < self.max_sequence_length)
+        mask[(row_indices, valid_len[row_indices] + 1)] = 1
+        mask = 1 - mask.cumsum(dim=-1)
+        mask = ~mask.bool()
+        return mask
+
     def training_step(self, batch, batch_idx):
         activities = batch['activity']
         if self.is_pose_3d:
@@ -35,11 +45,12 @@ class LitActionTransformer(pl.LightningModule):
         else:
             pose = batch['pose_2d'].float()
         # pose_3d = batch['pose_3d'].float()
-        # valid_len = batch['valid_len']
         num_batches, num_frames, num_joints, num_channels = pose.shape
+        valid_len = batch['valid_len']
+        seq_mask = self.generate_sequence_mask(valid_len, num_batches, num_frames)
         x = pose.reshape([num_batches, num_frames, -1])
         
-        preds = self.model(x)
+        preds = self.model(x, seq_mask)
         loss = F.cross_entropy(preds, activities)
         acc = (preds.argmax(dim=-1) == activities).float().mean()
 
@@ -54,9 +65,11 @@ class LitActionTransformer(pl.LightningModule):
         else:
             pose = batch['pose_2d'].float()
         num_batches, num_frames, num_joints, num_channels = pose.shape
+        valid_len = batch['valid_len']
+        seq_mask = self.generate_sequence_mask(valid_len, num_batches, num_frames)
         x = pose.reshape([num_batches, num_frames, -1])
-
-        preds = self.model(x)
+        
+        preds = self.model(x, seq_mask)
         predict = preds.argmax(dim=-1)
         self.val_predict.append(predict.detach().cpu().numpy())
         gt = activities
@@ -71,9 +84,11 @@ class LitActionTransformer(pl.LightningModule):
         else:
             pose = batch['pose_2d'].float()
         num_batches, num_frames, num_joints, num_channels = pose.shape
+        valid_len = batch['valid_len']
+        seq_mask = self.generate_sequence_mask(valid_len, num_batches, num_frames)
         x = pose.reshape([num_batches, num_frames, -1])
         
-        preds = self.model(x)
+        preds = self.model(x, seq_mask)
         predict = preds.argmax(dim=-1)
         self.test_predict.append(predict.detach().cpu().numpy())
         gt = activities
@@ -111,5 +126,5 @@ class LitActionTransformer(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.hparams.lr)
-        lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[100, 150], gamma=0.1)
+        lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[150, 200], gamma=0.1)
         return [optimizer], [lr_scheduler]
