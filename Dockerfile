@@ -33,5 +33,9 @@ RUN pip install einops
 RUN pip install timm
 RUN pip install tensorboard
 RUN pip install seaborn
+RUN pip install transformers
+RUN pip install huggingface_hub
+RUN pip install av
+RUN pip install pytorchvideo evaluate
 ADD Makefile /workspace
 # ADD requirements.txt /workspace

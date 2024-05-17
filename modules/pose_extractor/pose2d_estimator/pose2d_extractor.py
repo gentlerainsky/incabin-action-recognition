@@ -3,7 +3,7 @@ import pickle
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from modules.pose_extractor.pose2d_estimator import Pose2DEstimator
+from modules.pose_extractor.pose2d_estimator.pose2d_estimator import Pose2DEstimator
 import datetime
 
 
@@ -14,12 +14,17 @@ class Pose2DExtractor:
         data_subset: str,
         pose_estimator_2d: Pose2DEstimator,
         pickle_output_path: str,
+        padding_length: int = 15,
+        sampling_period: int = 2
     ):
         self.video_root_path = video_root_path
         self.data_subset = data_subset
         self.pose_estimator_2d = pose_estimator_2d
         self.annotation_df = None
         self.pickle_path = pickle_output_path
+        self.num_padding_frames = padding_length
+        # pick 1 every `sample_period` frames
+        self.sampling_period = sampling_period
 
     def extract_2d_pose_from_annotation_file(self, annotation_path: str):
         self.annotation_path = Path(annotation_path)
@@ -57,22 +62,30 @@ class Pose2DExtractor:
                 )
                 cap = cv2.VideoCapture(video_file)
                 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                frame_rate = int(cap.get(cv2.CAP_PROP_FPS))
-                # in Hz
-                sampling_rate = 15
-                sampling_period = int((1 / sampling_rate) * np.floor(frame_rate))
             images = []
-            start = row["frame_start"]
-            end = row["frame_end"]
-            for frame_number in range(start, end, sampling_period):
+            start = row["frame_start"] - (self.num_padding_frames * self.sampling_period)
+            end = row["frame_end"] + (self.num_padding_frames * self.sampling_period)
+            annotated_frame_start = row["frame_start"]
+            annotated_frame_end = row["frame_end"]
+            if start < 0:
+                # pad further at the end
+                end = end + abs(start)
+                start = 0
+            elif end > total_frames:
+                # pad further at the start
+                start = start - (end - total_frames)
+                end = total_frames
+            for frame_number in range(start, end, self.sampling_period):
                 cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
                 _, image = cap.read()
                 images.append(image)
             bboxes, pose_2d_list, keypoint_2d_scores = self.pose_estimator_2d.inference(
                 images
             )
+            current_frame_info = []
+            current_pose_2d_results = []
             for idx, image in enumerate(images):
-                frame_info.append(
+                current_frame_info.append(
                     dict(
                         frame_index=frame_index,
                         participant_id=participant_id,
@@ -82,7 +95,7 @@ class Pose2DExtractor:
                         activity=row["activity"],
                     )
                 )
-                pose_2d_results.append(
+                current_pose_2d_results.append(
                     dict(
                         frame_index=frame_index,
                         pose_2d=pose_2d_list[idx],
@@ -91,6 +104,11 @@ class Pose2DExtractor:
                     )
                 )
                 frame_index += 1
+            for item in current_frame_info:
+                item['annotated_frame_start'] = annotated_frame_start
+                item['annotated_frame_end'] = annotated_frame_end
+            frame_info += current_frame_info
+            pose_2d_results += current_pose_2d_results
             with open(frame_info_pickle_path, "wb") as f:
                 pickle.dump(frame_info, f)
             with open(pose2D_pickle_path, "wb") as f:
@@ -100,7 +118,9 @@ class Pose2DExtractor:
             .groupby(['participant_id', 'video_name', 'annotation_id'])\
             .agg({
                 'activity': 'first',
-                'frame_index': ['min', 'max'],
+                'annotated_frame_start': 'first',
+                'annotated_frame_end': 'first',
+                'frame_index': ['min', 'max']
             }).reset_index()
         annotation_df.columns = annotation_df.columns.map(lambda x: '_'.join([str(i) for i in x]))
         annotation_df = annotation_df.rename(columns={
@@ -108,10 +128,11 @@ class Pose2DExtractor:
             'video_name_': 'video_name',
             'annotation_id_': 'annotation_id',
             'activity_first': 'activity',
+            'annotated_frame_start_first': 'annotated_frame_start',
+            'annotated_frame_end_first': 'annotated_frame_end',
             'frame_index_min': 'frame_index_start',
             'frame_index_max': 'frame_index_end'
         })
         annotation_df['frame_index_end'] = annotation_df['frame_index_end'] + 1
-        with open(annotation_path, 'wb') as f:
-            pickle.dump(annotation_path, f)
-
+        with open(annotation_pickle_path, 'wb') as f:
+            pickle.dump(annotation_df, f)

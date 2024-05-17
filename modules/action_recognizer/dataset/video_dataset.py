@@ -40,7 +40,7 @@ all_activities = [
 all_activity_mapper = {all_activities[i]: i for i in range(len(all_activities))}
 
 
-class PoseDataset:
+class VideoDataset:
     def __init__(self, annotation_df, poses, max_len=30) -> None:
         self.pose_info = poses
         self.annotation_df = annotation_df
@@ -64,23 +64,21 @@ class PoseDataset:
                 pose_2d = np.array(self.pose_2d[seq_start: seq_start + self.max_len])
                 pose_3d = np.array(self.pose_3d[seq_start: seq_start + self.max_len])
             else:
-                continue
-                # pose_2d = np.array(self.pose_2d[seq_start: end])
-                # pose_3d = np.array(self.pose_3d[seq_start: end])
-                # if (end - start) < self.max_len:
-                #     dim0, dim1, dim2 = pose_2d.shape
-                #     pose_2d = np.concatenate([np.array(pose_2d), np.zeros((self.max_len - dim0, dim1, dim2))], axis=0)
-                #     dim0, dim1, dim2 = pose_3d.shape
-                #     pose_3d = np.concatenate([np.array(pose_3d), np.zeros((self.max_len - dim0, dim1, dim2))], axis=0)
-                #     valid_len = self.max_len - dim0
+                pose_2d = np.array(self.pose_2d[seq_start: end])
+                pose_3d = np.array(self.pose_3d[seq_start: end])
+                if (end - start) < self.max_len:
+                    dim0, dim1, dim2 = pose_2d.shape
+                    pose_2d = np.concatenate([np.array(pose_2d), np.zeros((self.max_len - dim0, dim1, dim2))], axis=0)
+                    dim0, dim1, dim2 = pose_3d.shape
+                    pose_3d = np.concatenate([np.array(pose_3d), np.zeros((self.max_len - dim0, dim1, dim2))], axis=0)
+                    valid_len = self.max_len - dim0
             self.pose_2d_sequences.append(pose_2d)
             self.pose_3d_sequences.append(pose_3d)
             self.sequnce_valid_len.append(valid_len)
             self.activities.append(all_activity_mapper[annotation.activity])
 
     def __len__(self):
-        # return self.annotation_df.shape[0]
-        return len(self.activities)
+        return self.annotation_df.shape[0]
 
     def __getitem__(self, idx):
         return dict(
