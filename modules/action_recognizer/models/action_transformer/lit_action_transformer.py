@@ -1,5 +1,6 @@
 import pytorch_lightning as pl
 from modules.action_recognizer.models.action_transformer.action_transformer import ActionTransformer
+from modules.action_recognizer.dataset.pose_dataset import all_activities
 from torch import optim
 import torch.nn.functional as F
 import numpy as np
@@ -104,7 +105,7 @@ class LitActionTransformer(pl.LightningModule):
         num_correct = (predict == gt).sum()
         print(f'validation set accuracy = {accuracy:.4f} [correct={num_correct}/{gt.shape[0]}]')
         # with np.printoptions(threshold=np.inf, linewidth=1000):
-        #     matrix = confusion_matrix(gt, predict)
+        #     matrix = confusion_matrix(gt, predict, labels=range(len(all_activities)))
         #      print(f'validation set confusion_matrix =\n{matrix}')
         self.val_predict = []
         self.val_gt = []
@@ -113,7 +114,8 @@ class LitActionTransformer(pl.LightningModule):
     def on_test_epoch_end(self):
         predict = np.concatenate(self.test_predict)
         gt = np.concatenate(self.test_gt)
-        matrix = confusion_matrix(gt, predict)
+        # TODO: add label!
+        matrix = confusion_matrix(gt, predict, labels=range(len(all_activities)))
         self.test_confusion_matrix = matrix
         accuracy = (predict == gt).mean()
         num_correct = (predict == gt).sum()
