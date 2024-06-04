@@ -1,5 +1,6 @@
 import numpy as np
-from torch.nn.utils.rnn import pad_sequence
+import pandas as pd
+
 
 all_activities = sorted([
     'standing_by_the_door', 'closing_door_outside',
@@ -22,23 +23,70 @@ all_activity_mapper = {all_activities[i]: i for i in range(len(all_activities))}
 
 
 class PoseDataset:
-    def __init__(self, annotation_df, poses, max_len=30) -> None:
-        self.pose_info = poses
+    def __init__(self, annotation_df, pose_df, max_len=30, features=None):
+        self.pose_df = pose_df
         self.annotation_df = annotation_df
         self.max_len = max_len
-        self.pose_2d = np.array([item['pose_2d'] for item in self.pose_info])
-        self.pose_3d = np.array([item['pose_3d'] for item in self.pose_info])
+        self.items = []
+        if features is None:
+            self.features = set(['pose_2d'])
+        else:
+            self.features = set(features)
+        self.calculate_features()
+
+    def calculate_features(self):
+        for index, row in self.annotation_df.iterrows():
+            start, end = row.frame_index_start, row.frame_index_end
+            frame_seq = self.pose_df.loc[start: end - 1]
+            if frame_seq[frame_seq.annotated_frame].shape[0] > self.max_len:
+                frame_seq = frame_seq[frame_seq.annotated_frame]
+            
+            item = dict(
+                index=index,
+                seq_len=frame_seq.shape[0],
+                pose_2d=np.stack(frame_seq['pose_2d'].values, axis=0),
+                pose_3d=np.stack(frame_seq['pose_3d'].values, axis=0),
+                bone=np.stack(frame_seq['bone'].values, axis=0),
+                velocity=np.stack(frame_seq['velocity'].values, axis=0),
+                activity=all_activity_mapper[row.activity]
+            )
+            self.items.append(item)
 
     def __len__(self):
-        return self.annotation_df.shape[0]
+        # return self.annotation_df.shape[0]
+        return len(self.items)
 
     def __getitem__(self, idx):
-        item = self.annotation_df.iloc[idx]
-        seq_start = np.random.randint(item.frame_index_startme_, item.frame_index_end - self.max_len)
-        return dict(
+        item = self.items[idx]
+        seq_start = np.random.randint(0, item['seq_len'] - self.max_len)
+        results = dict(
             idx=idx,
-            activity=all_activity_mapper[item.activity],
-            pose_2d=self.pose_2d[seq_start: seq_start + self.max_len],
-            pose_3d=self.pose_3d[seq_start: seq_start + self.max_len],
+            activity=item['activity'],
+            pose_2d=item['pose_2d'][seq_start:seq_start+self.max_len],
+            pose_3d=item['pose_3d'][seq_start:seq_start+self.max_len],
+            bone=item['bone'][seq_start:seq_start+self.max_len],
+            velocity=item['velocity'][seq_start:seq_start+self.max_len],
             valid_len=self.max_len
         )
+        return results
+
+    # def __getitem__(self, idx):
+    #     item_annotation = self.annotation_df.iloc[idx]
+    #     start, end = item_annotation.frame_index_start, item_annotation.frame_index_end
+    #     frame_seq = self.pose_df.loc[start: end]
+    #     if frame_seq[frame_seq.annotated_frame].shape[0] > self.max_len:
+    #         frame_seq = frame_seq[frame_seq.annotated_frame]
+    #     seq_start = np.random.randint(0, frame_seq.shape[0] - self.max_len)
+
+    #     results = dict(
+    #         idx=idx,
+    #         activity=all_activity_mapper[item_annotation.activity],
+    #         valid_len=self.max_len
+    #     )
+    #     if 'pose_3d' in self.features:
+    #         poses = frame_seq.iloc[seq_start:seq_start + self.max_len]['pose_3d'].values
+    #         results['pose_3d'] = np.stack(poses, axis=0)
+    #     if 'pose_2d' in self.features:
+    #         poses = frame_seq.iloc[seq_start:seq_start + self.max_len]['pose_2d'].values
+    #         results['pose_2d'] = np.stack(poses, axis=0)
+    #     return results

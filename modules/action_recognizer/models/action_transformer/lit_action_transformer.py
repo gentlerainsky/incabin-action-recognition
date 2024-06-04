@@ -10,7 +10,7 @@ import torch
 
 class LitActionTransformer(pl.LightningModule):
 
-    def __init__(self, model_kwargs, lr, is_pose_3d=False):
+    def __init__(self, model_kwargs, lr, is_pose_3d=False, use_bone=False, use_velocity=False):
         super().__init__()
         self.save_hyperparameters()
         if is_pose_3d:
@@ -25,6 +25,8 @@ class LitActionTransformer(pl.LightningModule):
         self.test_gt = []
         self.is_pose_3d = is_pose_3d
         self.test_confusion_matrix = None
+        self.use_bone = use_bone
+        self.use_velocity = use_velocity
         # self.example_input_array = next(iter(train_loader))[0]
 
     def forward(self, x):
@@ -43,6 +45,10 @@ class LitActionTransformer(pl.LightningModule):
         activities = batch['activity']
         if self.is_pose_3d:
             pose = batch['pose_3d'].float()
+            if self.use_bone:
+                pose = torch.concat([pose, batch['bone'].float()], dim=2)
+            if self.use_velocity:
+                pose = torch.concat([pose, batch['velocity'].float()], dim=2)
         else:
             pose = batch['pose_2d'].float()
         # pose_3d = batch['pose_3d'].float()
@@ -63,6 +69,10 @@ class LitActionTransformer(pl.LightningModule):
         activities = batch['activity']
         if self.is_pose_3d:
             pose = batch['pose_3d'].float()
+            if self.use_bone:
+                pose = torch.concat([pose, batch['bone'].float()], dim=2)
+            if self.use_velocity:
+                pose = torch.concat([pose, batch['velocity'].float()], dim=2)
         else:
             pose = batch['pose_2d'].float()
         num_batches, num_frames, num_joints, num_channels = pose.shape
@@ -82,6 +92,10 @@ class LitActionTransformer(pl.LightningModule):
         activities = batch['activity']
         if self.is_pose_3d:
             pose = batch['pose_3d'].float()
+            if self.use_bone:
+                pose = torch.concat([pose, batch['bone'].float()], dim=2)
+            if self.use_velocity:
+                pose = torch.concat([pose, batch['velocity'].float()], dim=2)
         else:
             pose = batch['pose_2d'].float()
         num_batches, num_frames, num_joints, num_channels = pose.shape
@@ -114,7 +128,6 @@ class LitActionTransformer(pl.LightningModule):
     def on_test_epoch_end(self):
         predict = np.concatenate(self.test_predict)
         gt = np.concatenate(self.test_gt)
-        # TODO: add label!
         matrix = confusion_matrix(gt, predict, labels=range(len(all_activities)))
         self.test_confusion_matrix = matrix
         accuracy = (predict == gt).mean()

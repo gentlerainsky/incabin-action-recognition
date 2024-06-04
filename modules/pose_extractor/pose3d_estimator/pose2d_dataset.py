@@ -24,12 +24,12 @@ class Pose2DDataset:
             pose_2d = np.array(item['pose_2d'])
             pose_2d = self.filter_relevance_joint(pose_2d)
             pose_2d, root_2d = center_pose2d_to_neck(pose_2d)
-            pose_2d, w, h = normalize_2d_pose_to_pose(pose_2d)
+            # pose_2d, w, h = normalize_2d_pose_to_pose(pose_2d)
             item = {
                 'frame_index': frame_index,
                 'pose_2d': pose_2d,
                 'root_2d': root_2d,
-                'scale_factor': [w, h]
+                # 'scale_factor': [w, h]
             }
             self.samples.append(item)
 
