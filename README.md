@@ -31,10 +31,11 @@
 
 - Packages used are listed in `Dockerfile`.
 - To use Docker images, we can run the command in `Makefile`.
+
 ```bash
 # To build the image.
 make build
-# To run the shell of the image. Don't forget to change the `-v` option to suit the running enviroment.
+# To run the shell of the image. Don't forget to change the `-v` option to suit the running environment.
 make shell
 # To run jupyter server
 make jupyter
