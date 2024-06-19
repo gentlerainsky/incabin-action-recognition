@@ -2,9 +2,10 @@ import torch
 import torch.functional as F
 import torch.nn as nn
 
-
+# Modified from Tensorflow implementation in https://github.com/PIC4SeR/AcT
+# and UvA's Deep Learning Tutorials: Vision Transformers implementation in 
+# https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/tutorial15/Vision_Transformer.html
 class AttentionBlock(nn.Module):
-
     def __init__(self, embed_dim, hidden_dim, num_heads, dropout=0.0, is_pre_norm=True):
         """
         Inputs:
@@ -31,18 +32,17 @@ class AttentionBlock(nn.Module):
             nn.Dropout(dropout)
         )
 
-    def forward(self, args):
-        x, seq_mask = args
+    def forward(self, x):
         if self.is_pre_norm:
             inp_x = self.layer_norm_1(x)
-            x = x + self.attn(inp_x, inp_x, inp_x, key_padding_mask=seq_mask)[0]
+            x = x + self.attn(inp_x, inp_x, inp_x)[0]
             x = x + self.linear(self.layer_norm_2(x))
         else:
-            x = x + self.attn(x, x, x, key_padding_mask=seq_mask)[0]
+            x = x + self.attn(x, x, x)[0]
             x = self.layer_norm_1(x)
             x = x + self.linear(x)
             x = self.layer_norm_2(x)
-        return x, seq_mask
+        return x
     
 
 class ActionTransformer(nn.Module):
@@ -82,7 +82,7 @@ class ActionTransformer(nn.Module):
         self.pos_embedding = nn.Parameter(torch.randn(1, 1 + num_frames, embed_dim))
 
 
-    def forward(self, x, seq_mask):
+    def forward(self, x):
         # Preprocess input
         B, T, _ = x.shape
         x = self.input_layer(x)
@@ -94,8 +94,7 @@ class ActionTransformer(nn.Module):
         # Apply Transforrmer
         x = self.dropout(x)
         x = x.transpose(0, 1)
-        x, _ = self.transformer((x, seq_mask))
-
+        x = self.transformer(x)
         # Perform classification prediction
         cls = x[0]
         out = self.mlp_head(cls)

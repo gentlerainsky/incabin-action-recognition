@@ -1,0 +1,1 @@
+saved_models/pose3d_estimator/all_actors/jointformer/lightning_logs/version_0/checkpoints/epoch=34-step=12285.ckpt

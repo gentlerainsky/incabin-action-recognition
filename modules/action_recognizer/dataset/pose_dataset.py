@@ -53,7 +53,6 @@ class PoseDataset:
             self.items.append(item)
 
     def __len__(self):
-        # return self.annotation_df.shape[0]
         return len(self.items)
 
     def __getitem__(self, idx):
@@ -70,23 +69,3 @@ class PoseDataset:
         )
         return results
 
-    # def __getitem__(self, idx):
-    #     item_annotation = self.annotation_df.iloc[idx]
-    #     start, end = item_annotation.frame_index_start, item_annotation.frame_index_end
-    #     frame_seq = self.pose_df.loc[start: end]
-    #     if frame_seq[frame_seq.annotated_frame].shape[0] > self.max_len:
-    #         frame_seq = frame_seq[frame_seq.annotated_frame]
-    #     seq_start = np.random.randint(0, frame_seq.shape[0] - self.max_len)
-
-    #     results = dict(
-    #         idx=idx,
-    #         activity=all_activity_mapper[item_annotation.activity],
-    #         valid_len=self.max_len
-    #     )
-    #     if 'pose_3d' in self.features:
-    #         poses = frame_seq.iloc[seq_start:seq_start + self.max_len]['pose_3d'].values
-    #         results['pose_3d'] = np.stack(poses, axis=0)
-    #     if 'pose_2d' in self.features:
-    #         poses = frame_seq.iloc[seq_start:seq_start + self.max_len]['pose_2d'].values
-    #         results['pose_2d'] = np.stack(poses, axis=0)
-    #     return results
