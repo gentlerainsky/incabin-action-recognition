@@ -1,4 +1,4 @@
-# Uniscope 3D
+# In Cabin Skeleton-Based Action Recognition
 
 ----------------------------------------
 
